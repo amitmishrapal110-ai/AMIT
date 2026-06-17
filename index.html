@@ -134,9 +134,6 @@
     }
     .employee-link-buttons button.success-btn { background: #28a745; color: white; }
     .employee-link-buttons button.expire-btn { background: #e74c3c; color: white; }
-    .available-count {
-      color: #667eea; font-weight: bold; margin-left: 10px;
-    }
     @media (max-width: 768px) {
       .panels, .stat-row, .role-selection { grid-template-columns: 1fr; }
       .header h1 { font-size: 1.8em; }
@@ -196,10 +193,7 @@
 
       <div class="panel" id="employeePanel" style="display:none;">
         <h2>👷 Employee Panel</h2>
-        <p style="color:#666; margin-bottom:20px;">
-          Claiming links as: <strong id="employeeNameDisplay" style="color:#28a745;"></strong>
-          <span id="availableCount" class="available-count"></span>
-        </p>
+        <p style="color:#666; margin-bottom:20px;">Claiming links as: <strong id="employeeNameDisplay" style="color:#28a745;"></strong></p>
         <button class="btn" onclick="getLink()">📥 Get Latest Available Link</button>
         <div style="margin-top:30px;">
           <h3 style="color:#28a745; margin-bottom:15px;">📋 Your Claimed Links</h3>
@@ -235,6 +229,7 @@
     let allData = { users: {}, links: [] };
     let usersListener = null;
     let linksListener = null;
+    let currentUsersUnsub = null;
 
     function normalizeName(name) {
       return name.trim().toUpperCase();
@@ -314,31 +309,30 @@
       updateUI();
     }
 
-    function setupListeners() {
-      if (usersListener) usersListener();
-      if (linksListener) linksListener();
+function setupListeners() {
+  if (usersListener) usersListener();
+  if (linksListener) linksListener();
 
-      usersListener = db.collection('users').onSnapshot(snapshot => {
-        const nextUsers = {};
-        snapshot.forEach(doc => {
-          nextUsers[doc.id] = { id: doc.id, ...doc.data() };
-        });
-        allData.users = nextUsers;
-        if (currentUser) updateUI();
+  usersListener = db.collection('users').onSnapshot(snapshot => {
+    const nextUsers = {};
+    snapshot.forEach(doc => {
+      nextUsers[doc.id] = { id: doc.id, ...doc.data() };
+    });
+    allData.users = nextUsers;
+    if (currentUser) updateUI();
+  });
+
+  linksListener = db.collection('links')
+    .orderBy('timestamp', 'asc')
+    .onSnapshot(snapshot => {
+      const nextLinks = [];
+      snapshot.forEach(doc => {
+        nextLinks.push({ id: doc.id, ...doc.data() });
       });
-
-      linksListener = db.collection('links')
-        .orderBy('timestamp', 'asc')
-        .onSnapshot(snapshot => {
-          const nextLinks = [];
-          snapshot.forEach(doc => {
-            nextLinks.push({ id: doc.id, ...doc.data() });
-          });
-          allData.links = nextLinks;
-          if (currentUser) updateUI();
-        });
-    }
-
+      allData.links = nextLinks;
+      if (currentUser) updateUI();
+    });
+}
     function logout() {
       if (usersListener) usersListener();
       if (linksListener) linksListener();
@@ -384,10 +378,6 @@
         document.getElementById('employeePanel').style.display = 'block';
         document.getElementById('employeeNameDisplay').textContent = currentUser.name;
         document.getElementById('availableLinksSection').style.display = 'block';
-        
-        const pendingCount = allData.links.filter(link => link.status === 'pending').length;
-        document.getElementById('availableCount').textContent = `(Available links: ${pendingCount})`;
-        
         renderEmployeeLinks();
         renderAvailableLinks();
       }
@@ -427,74 +417,56 @@
       alert('✅ Link added successfully!');
     }
 
-    async function getLink() {
-      const myClaimedLinks = allData.links.filter(link => 
-        link.claimedBy === currentUser.id && link.status === 'claimed'
-      );
-      if (myClaimedLinks.length > 0) {
-        return alert('❌ You already have a claimed link! Mark it Success/Expire first before claiming another.');
-      }
+async function getLink() {
+  const pendingLink = allData.links.find(link => link.status === 'pending');
+  if (!pendingLink) return alert('❌ No available links!');
 
-      const pendingLink = allData.links.find(link => link.status === 'pending');
-      if (!pendingLink) return alert('❌ No available links!');
+  await db.collection('links').doc(pendingLink.id).set({
+    status: 'claimed',
+    claimedBy: currentUser.id,
+    claimedByName: currentUser.name
+  }, { merge: true });
 
-      try {
-        await db.runTransaction(async (transaction) => {
-          const linkRef = db.collection('links').doc(pendingLink.id);
-          const linkSnap = await transaction.get(linkRef);
-          
-          if (!linkSnap.exists || linkSnap.data().status !== 'pending') {
-            throw new Error('Link already claimed or not found');
-          }
+  await db.collection('users').doc(currentUser.id).set({
+    totalLinks: firebase.firestore.FieldValue.increment(1)
+  }, { merge: true });
 
-          transaction.update(linkRef, {
-            status: 'claimed',
-            claimedBy: currentUser.id,
-            claimedByName: currentUser.name
-          });
+  alert(`✅ Link claimed by ${currentUser.name}!\n\n${pendingLink.text}`);
+}
 
-          const userRef = db.collection('users').doc(currentUser.id);
-          transaction.update(userRef, {
-            totalLinks: increment(1)
-          });
-        });
+async function markSuccess(id) {
+  const link = allData.links.find(l => l.id === id);
+  if (!link) return alert('❌ Link not found!');
+  if (link.claimedBy !== currentUser.id) return alert('❌ You can only mark your OWN links!');
+  if (link.status !== 'claimed') return alert('❌ Only claimed links can be marked success!');
 
-        alert(`✅ Link claimed by ${currentUser.name}!\n\n${pendingLink.text}`);
-      } catch (error) {
-        console.error('Claim failed:', error);
-        alert('❌ Failed to claim link. Another employee may have claimed it. Try again.');
-      }
-    }
+  await db.collection('links').doc(id).set({
+    status: 'success'
+  }, { merge: true });
 
-    async function markSuccess(id) {
-      const link = allData.links.find(l => l.id === id);
-      if (!link) return alert('❌ Link not found!');
-      if (link.claimedBy !== currentUser.id) return alert('❌ You can only mark your OWN links!');
-      if (link.status !== 'claimed') return alert('❌ Only claimed links can be marked success!');
+  await db.collection('users').doc(currentUser.id).set({
+    successCount: increment(1)
+  }, { merge: true });
 
-      await db.collection('links').doc(id).delete();
+  alert('✅ Link marked as SUCCESS!');
+}
 
-      await db.collection('users').doc(currentUser.id).set({
-        successCount: increment(1)
-      }, { merge: true });
+async function markExpire(id) {
+  const link = allData.links.find(l => l.id === id);
+  if (!link) return alert('❌ Link not found!');
+  if (link.claimedBy !== currentUser.id) return alert('❌ You can only mark your OWN links!');
+  if (link.status !== 'claimed') return alert('❌ Only claimed links can be marked expire!');
 
-      alert('✅ Link marked as SUCCESS and deleted from UI!');
-    }
+  await db.collection('links').doc(id).set({
+    status: 'expire'
+  }, { merge: true });
 
-    async function markExpire(id) {
-      const link = allData.links.find(l => l.id === id);
-      if (!link) return alert('❌ Link not found!');
-      if (link.claimedBy !== currentUser.id) return alert('❌ You can only mark your OWN links!');
-      if (link.status !== 'claimed') return alert('❌ Only claimed links can be marked expire!');
+  await db.collection('users').doc(currentUser.id).set({
+    failCount: increment(1)
+  }, { merge: true });
 
-      await db.collection('links').doc(id).delete();
-
-      await db.collection('users').doc(currentUser.id).set({
-        failCount: increment(1)
-      }, { merge: true });
-
-      alert('❌ Link marked as EXPIRE and deleted from UI!');
-    }
+  alert('❌ Link marked as EXPIRE!');
+}
 
     function statusBadge(status) {
       if (status === 'success') return ['success', '✅ Success'];
@@ -602,7 +574,7 @@
                 return `
                   <div class="link-item">
                     <div><strong>${link.text}</strong><span class="link-status ${cls}">${txt}</span></div>
-                    <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
+                    <div class="link-meta"><a href="${link.url}" target="_blank">${link.url}</a></div>
                     <div class="link-meta">
                       <strong>Added by:</strong> ${link.addedByName || 'Unknown'} |
                       <strong>Claimed:</strong> ${link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'}
@@ -641,38 +613,37 @@
       }).join('');
     }
 
-    function renderEmployeeLinks() {
-      const linksList = document.getElementById('employeeLinksList');
-      const employeeLinks = allData.links.filter(link => link.claimedBy === currentUser.id);
+function renderEmployeeLinks() {
+  const linksList = document.getElementById('employeeLinksList');
+  const employeeLinks = allData.links.filter(link => link.claimedBy === currentUser.id);
 
-      if (!employeeLinks.length) {
-        linksList.innerHTML = '<p style="text-align:center; color:#666;">No links claimed yet.</p>';
-        return;
-      }
+  if (!employeeLinks.length) {
+    linksList.innerHTML = '<p style="text-align:center; color:#666;">No links claimed yet.</p>';
+    return;
+  }
 
-      linksList.innerHTML = employeeLinks.map(link => {
-        const [cls, txt] = statusBadge(link.status);
-        return `
-          <div class="link-item">
-            <div><strong>${link.text}</strong><span class="link-status ${cls}">${txt}</span></div>
-            <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
-            <div class="link-meta">
-              <strong>Added by:</strong> ${link.addedByName || 'Unknown'} |
-              <strong>Claimed:</strong> ${link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'}
+  linksList.innerHTML = employeeLinks.map(link => {
+    const [cls, txt] = statusBadge(link.status);
+    return `
+      <div class="link-item">
+        <div><strong>${link.text}</strong><span class="link-status ${cls}">${txt}</span></div>
+        <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
+        <div class="link-meta">
+          <strong>Added by:</strong> ${link.addedByName || 'Unknown'} |
+          <strong>Claimed:</strong> ${link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'}
+        </div>
+        ${link.status === 'claimed' ? `
+          <div class="employee-link">
+            <div class="employee-link-buttons">
+              <button type="button" class="success-btn" onclick="markSuccess('${link.id}')">✅ Success</button>
+              <button type="button" class="expire-btn" onclick="markExpire('${link.id}')">❌ Expire</button>
             </div>
-            ${link.status === 'claimed' ? `
-              <div class="employee-link">
-                <div class="employee-link-buttons">
-                  <button type="button" class="success-btn" onclick="markSuccess('${link.id}')">✅ Success</button>
-                  <button type="button" class="expire-btn" onclick="markExpire('${link.id}')">❌ Expire</button>
-                </div>
-              </div>
-            ` : ''}
           </div>
-        `;
-      }).join('');
-    }
-
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
     function renderAvailableLinks() {
       const linksList = document.getElementById('availableLinksList');
       const pendingLinks = allData.links.filter(link => link.status === 'pending');
