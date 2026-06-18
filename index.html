@@ -77,7 +77,8 @@
       font-size: 16px; cursor: pointer; width: 100%; transition: background 0.3s;
     }
     .btn:hover { background: #5568d3; }
-
+    
+    /* Reports Specific CSS */
     .report-card { background: #f8f9fa; border: 1px solid #ddd; padding: 20px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
     .report-card h3 { margin-bottom: 15px; font-size: 1.4em; border-bottom: 2px solid #ddd; padding-bottom: 10px;}
     .report-table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
@@ -97,7 +98,7 @@
     }
     .owner-dashboard.active { display: block; }
     .owner-dashboard h2 { color: #e74c3c; margin-bottom: 20px; font-size: 2em; border-bottom: 3px solid #e74c3c; padding-bottom: 10px; }
-
+    
     .stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px; }
     .stat-box { padding: 15px; background: white; border-radius: 8px; text-align: center; border: 1px solid #eee; }
     .stat-box.total { background: #e3f2fd; color: #1976d2; border-color:#b6e0fe; }
@@ -105,7 +106,7 @@
     .stat-box.fail { background: #f8d7da; color: #721c24; border-color:#f5c6cb; }
     .stat-box strong { font-size: 1.8em; display: block; margin-bottom: 5px; }
     .stat-box span { font-size: 0.9em; color: #666; }
-
+    
     .link-list { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); }
     .link-list h3 { color: #667eea; margin-bottom: 15px; }
     .link-item {
@@ -119,14 +120,15 @@
     .link-status.expire { background: #f8d7da; color: #721c24; }
     .link-status.pending { background: #e3f2fd; color: #1976d2; }
     .link-status.claimed { background: #fff3cd; color: #856404; }
-
+    
     .employee-link { margin-top: 10px; padding: 10px; background: #e7f3ff; border-radius: 5px; }
     .employee-link-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .employee-link-buttons button { padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
     .employee-link-buttons button.success-btn { background: #28a745; color: white; }
     .employee-link-buttons button.expire-btn { background: #e74c3c; color: white; }
     .available-count { color: #667eea; font-weight: bold; margin-left: 10px; }
-
+    .error-msg { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 8px; margin-bottom: 15px; display: none; }
+    
     @media (max-width: 768px) {
       .panels, .stat-row, .role-selection { grid-template-columns: 1fr; }
       .header h1 { font-size: 1.8em; }
@@ -166,14 +168,14 @@
 
     <div class="owner-dashboard" id="ownerDashboard">
       <h2>🔑 Owner Dashboard & Reports</h2>
-
+      
       <button class="export-btn" onclick="downloadOwnerSummaryCSV()">📊 Download Users Summary (CSV)</button>
       <button class="export-btn export-btn-detail" onclick="downloadDetailedLinkReportCSV()">📋 Download Detailed Link Log (CSV)</button>
-
+      
       <div class="report-card">
         <h3 style="color:#667eea;">👨‍💼 Admin Performance Report</h3>
-        <div style="overflow-x:auto;">
-          <table class="report-table admin-table">
+        <div style="overflow-x: auto;">
+          <table class="report-table admin-table" id="adminSummaryTable">
             <thead>
               <tr>
                 <th>Name</th>
@@ -190,8 +192,8 @@
 
       <div class="report-card">
         <h3 style="color:#28a745;">👷 Employee Performance Report</h3>
-        <div style="overflow-x:auto;">
-          <table class="report-table employee-table">
+        <div style="overflow-x: auto;">
+          <table class="report-table employee-table" id="employeeSummaryTable">
             <thead>
               <tr>
                 <th>Name</th>
@@ -208,18 +210,20 @@
     </div>
 
     <div class="panels">
+      
       <div class="panel" id="adminPanel" style="display:none;">
         <h2>👨‍💼 Admin Panel</h2>
         <p style="color:#666; margin-bottom:20px;">Adding links as: <strong id="adminNameDisplay" style="color:#667eea;"></strong></p>
-
+        
         <div class="report-card" id="adminReportCard"></div>
+        <div class="error-msg" id="adminErrorMsg"></div>
 
         <div class="form-group">
-          <label for="adminLink">Add New Link:</label>
-          <input type="text" id="adminLink" placeholder="Resend OTP [https://example.com/link]" required>
+          <label for="adminLink">Add New Link (Email included):</label>
+          <input type="text" id="adminLink" placeholder="Example: Resend code [https://www.amazon.com/ap/cvf/request...]" required>
         </div>
         <button class="btn" onclick="addLink()">➕ Add Link</button>
-
+        
         <div style="margin-top:30px;">
           <h3 style="color:#667eea; margin-bottom:15px;">📋 Your Added Links</h3>
           <div id="adminLinksList"></div>
@@ -234,9 +238,10 @@
         </p>
 
         <div class="report-card" id="employeeReportCard"></div>
+        <div class="error-msg" id="employeeErrorMsg"></div>
 
         <button class="btn" onclick="getLink()" style="background:#28a745;">📥 Get Latest Available Link</button>
-
+        
         <div style="margin-top:30px;">
           <h3 style="color:#28a745; margin-bottom:15px;">📋 Your Claimed Links</h3>
           <div id="employeeLinksList"></div>
@@ -278,9 +283,11 @@
     function checkLoginInputs() {
       const submitBtn = document.getElementById('submitBtn');
       if (userRole === 'owner') {
-        submitBtn.disabled = document.getElementById('ownerSecret').value.trim().length === 0;
+        const secret = document.getElementById('ownerSecret').value.trim();
+        submitBtn.disabled = secret.length === 0;
       } else {
-        submitBtn.disabled = document.getElementById('userName').value.trim().length < 2;
+        const name = document.getElementById('userName').value.trim();
+        submitBtn.disabled = name.length < 2;
       }
     }
 
@@ -289,16 +296,16 @@
 
     function selectRole(role) {
       userRole = role;
-      document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('selected'));
-      document.getElementById('btn-' + role).classList.add('selected');
-
       const userNameInput = document.getElementById('userName');
       const submitBtn = document.getElementById('submitBtn');
       const ownerSecretInput = document.getElementById('ownerSecret');
 
+      document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('selected'));
+      document.getElementById('btn-' + role).classList.add('selected');
+
       if (role === 'owner') {
-        userNameInput.style.display = 'none';
         userNameInput.disabled = true;
+        userNameInput.style.display = 'none';
         ownerSecretInput.style.display = 'block';
         ownerSecretInput.focus();
         submitBtn.textContent = '🔑 Owner Login';
@@ -328,7 +335,8 @@
 
       const rawName = document.getElementById('userName').value.trim();
       if (!rawName) return alert('Please enter your name!');
-
+      if (rawName.length < 2) return alert('Name must be at least 2 characters!');
+      
       const userId = normalizeName(rawName);
       const userRef = db.collection('users').doc(userId);
       const snap = await userRef.get();
@@ -344,11 +352,7 @@
           joinedAt: new Date().toISOString()
         }, { merge: true });
       } else {
-        await userRef.set({
-          name: displayName(rawName),
-          nameKey: userId,
-          role: userRole
-        }, { merge: true });
+        await userRef.set({ name: displayName(rawName), role: userRole }, { merge: true });
       }
 
       const data = (await userRef.get()).data();
@@ -365,39 +369,36 @@
 
       usersListener = db.collection('users').onSnapshot(snapshot => {
         const nextUsers = {};
-        snapshot.forEach(doc => nextUsers[doc.id] = { id: doc.id, ...doc.data() });
+        snapshot.forEach(doc => { nextUsers[doc.id] = { id: doc.id, ...doc.data() }; });
         allData.users = nextUsers;
         if (currentUser) updateUI();
       });
 
-      linksListener = db.collection('links')
-        .orderBy('timestamp', 'asc')
-        .onSnapshot(snapshot => {
-          const nextLinks = [];
-          snapshot.forEach(doc => nextLinks.push({ id: doc.id, ...doc.data() }));
-          allData.links = nextLinks;
-          if (currentUser) updateUI();
-        });
+      linksListener = db.collection('links').orderBy('timestamp', 'asc').onSnapshot(snapshot => {
+        const nextLinks = [];
+        snapshot.forEach(doc => { nextLinks.push({ id: doc.id, ...doc.data() }); });
+        allData.links = nextLinks;
+        if (currentUser) updateUI();
+      });
     }
 
     function logout() {
       if (usersListener) usersListener();
       if (linksListener) linksListener();
-      currentUser = null;
-      userRole = null;
-      location.reload();
+      currentUser = null; userRole = null;
+      location.reload(); 
     }
 
     function calculateStats(userId, roleType) {
-      const userLinks = roleType === 'admin'
+      const userLinks = roleType === 'admin' 
         ? allData.links.filter(l => l.addedBy === userId)
         : allData.links.filter(l => l.claimedBy === userId);
 
       const total = userLinks.length;
       const success = userLinks.filter(l => l.status === 'success').length;
       const expire = userLinks.filter(l => l.status === 'expire').length;
-      const done = success + expire;
-      const rate = done > 0 ? ((success / done) * 100).toFixed(1) : '0.0';
+      const rate = total > 0 ? ((success / (success + expire || 1)) * 100).toFixed(1) : 0;
+
       return { total, success, expire, rate };
     }
 
@@ -410,7 +411,7 @@
           <div class="stat-box fail"><strong>${stats.expire}</strong><span>❌ Expire/Fail</span></div>
         </div>
         <p style="text-align:center; margin-top:15px; font-weight:bold; color:#333;">
-          Target Hit Rate: <span style="color:${Number(stats.rate) > 70 ? '#28a745' : '#e74c3c'}">${stats.rate}%</span>
+          Target Hit Rate: <span style="color:${stats.rate > 70 ? '#28a745' : '#e74c3c'}">${stats.rate}%</span>
         </p>
       `;
     }
@@ -420,30 +421,41 @@
       const roleIcon = currentUser.role === 'admin' ? '👨‍💼' : currentUser.role === 'employee' ? '👷' : '🔑';
       document.getElementById('currentUserDisplay').textContent = `${roleIcon} ${currentUser.name} (${currentUser.role})`;
 
+      // Hide error messages on UI update
+      document.getElementById('adminErrorMsg').style.display = 'none';
+      document.getElementById('employeeErrorMsg').style.display = 'none';
+
       if (currentUser.role === 'owner') {
         document.getElementById('ownerDashboard').classList.add('active');
         document.getElementById('adminPanel').style.display = 'none';
         document.getElementById('employeePanel').style.display = 'none';
         document.getElementById('availableLinksSection').style.display = 'none';
         renderOwnerDatabase();
-      } else if (currentUser.role === 'admin') {
+      } 
+      else if (currentUser.role === 'admin') {
         document.getElementById('ownerDashboard').classList.remove('active');
         document.getElementById('adminPanel').style.display = 'block';
         document.getElementById('employeePanel').style.display = 'none';
         document.getElementById('adminNameDisplay').textContent = currentUser.name;
         document.getElementById('availableLinksSection').style.display = 'block';
-        renderUserReportCard('adminReportCard', calculateStats(currentUser.id, 'admin'), 'Links Added');
+        
+        const stats = calculateStats(currentUser.id, 'admin');
+        renderUserReportCard('adminReportCard', stats, 'Links Added');
         renderAdminLinks();
         renderAvailableLinks();
-      } else {
+      } 
+      else {
         document.getElementById('ownerDashboard').classList.remove('active');
         document.getElementById('adminPanel').style.display = 'none';
         document.getElementById('employeePanel').style.display = 'block';
         document.getElementById('employeeNameDisplay').textContent = currentUser.name;
         document.getElementById('availableLinksSection').style.display = 'block';
+        
         const pendingCount = allData.links.filter(link => link.status === 'pending').length;
         document.getElementById('availableCount').textContent = `(Available links: ${pendingCount})`;
-        renderUserReportCard('employeeReportCard', calculateStats(currentUser.id, 'employee'), 'Links Claimed');
+        
+        const stats = calculateStats(currentUser.id, 'employee');
+        renderUserReportCard('employeeReportCard', stats, 'Links Claimed');
         renderEmployeeLinks();
         renderAvailableLinks();
       }
@@ -478,76 +490,112 @@
       }
     }
 
-    function csvEscape(v) {
-      return `"${String(v ?? '').replace(/"/g, '""')}"`;
-    }
-
     function downloadOwnerSummaryCSV() {
       const users = Object.values(allData.users);
-      if (!users.length) return alert('No data to download!');
+      if(!users.length) return alert("No data to download!");
 
-      let rows = ['Category,Name,Total Work,Success,Expire,Success Rate (%)'];
-      users.sort((a, b) => a.role.localeCompare(b.role)).forEach(user => {
+      let csvContent = "data:text/csv;charset=utf-8,Category,Name,Total Work,Success,Expire,Success Rate (%)\n";
+      users.sort((a, b) => a.role.localeCompare(b.role));
+
+      users.forEach(user => {
         const stats = calculateStats(user.id, user.role);
         const roleText = user.role === 'admin' ? 'Admin' : 'Employee';
-        rows.push([roleText, user.name, stats.total, stats.success, stats.expire, `${stats.rate}%`].map(csvEscape).join(','));
+        csvContent += `${roleText},${user.name},${stats.total},${stats.success},${stats.expire},${stats.rate}%\n`;
       });
 
-      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `Users_Summary_${new Date().toISOString().slice(0,10)}.csv`;
-      a.click();
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `Users_Summary_${new Date().toLocaleDateString()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
 
     function downloadDetailedLinkReportCSV() {
-      if (!allData.links.length) return alert('No link data to download!');
+      if (!allData.links.length) return alert("No link data to download!");
 
-      const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+.[a-zA-Z0-9._-]+)/i;
-      let rows = ['Link ID,Link Text,Extracted Email,Status,Added By (Admin),Claimed By (Employee),Date Added'];
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Link ID,Link Text,Extracted Email,Status,Added By (Admin),Claimed By (Employee),Date Added\n";
+
+      const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i;
 
       allData.links.forEach(link => {
-        const text = link.text || '';
-        const emailMatch = text.match(emailRegex);
-        const extractedEmail = emailMatch ? emailMatch[0] : 'No Email';
-        rows.push([
-          link.id,
-          text,
-          extractedEmail,
-          (link.status || '').toUpperCase(),
-          link.addedByName || 'Unknown',
-          link.claimedByName || 'Not Claimed',
-          link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'
-        ].map(csvEscape).join(','));
+        let safeText = link.text ? link.text.replace(/"/g, '""') : '';
+        let escapedText = `"${safeText}"`;
+
+        let emailMatch = safeText.match(emailRegex);
+        let extractedEmail = emailMatch ? emailMatch[0] : "No Email";
+
+        let status = link.status.toUpperCase();
+        let addedBy = link.addedByName || 'Unknown';
+        let claimedBy = link.claimedByName || 'Not Claimed';
+        let dateAdded = link.timestamp ? new Date(link.timestamp).toLocaleString() : '-';
+
+        csvContent += `${link.id},${escapedText},${extractedEmail},${status},"${addedBy}","${claimedBy}","${dateAdded}"\n`;
       });
 
-      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `Detailed_Links_Log_${new Date().toISOString().slice(0,10)}.csv`;
-      a.click();
+      const encodedUri = encodeURI(csvContent);
+      const linkNode = document.createElement("a");
+      linkNode.setAttribute("href", encodedUri);
+      linkNode.setAttribute("download", `Detailed_Links_Log_${new Date().toLocaleDateString()}.csv`);
+      document.body.appendChild(linkNode);
+      linkNode.click();
+      document.body.removeChild(linkNode);
+    }
+
+    // UPDATED: Extract URL from any format (with or without http, with text before)
+    function extractURL(linkText) {
+      // Match URL inside brackets [url]
+      const urlMatch = linkText.match(/\[([^\]]+)\]/);
+      if (urlMatch) {
+        return urlMatch[1].trim();
+      }
+      // If no brackets, return the whole text
+      return linkText.trim();
     }
 
     async function addLink() {
       const linkInput = document.getElementById('adminLink');
       const linkText = linkInput.value.trim();
-      if (!linkText) return alert('Please enter a valid link!');
+      const errorMsg = document.getElementById('adminErrorMsg');
+      
+      if (!linkText) {
+        errorMsg.textContent = '❌ Please enter a valid link!';
+        errorMsg.style.display = 'block';
+        return;
+      }
 
-      const urlMatch = linkText.match(/[([^]]+)]/);
-      const url = urlMatch ? urlMatch[1].trim() : linkText.trim();
-      if (!url.startsWith('http://') && !url.startsWith('https://')) return alert('Please enter a valid URL');
+      // Extract URL from brackets [url]
+      const url = extractURL(linkText);
+      
+      if (!url) {
+        errorMsg.textContent = '❌ Please enter a valid URL!';
+        errorMsg.style.display = 'block';
+        return;
+      }
 
-      await db.collection('links').add({
-        text: linkText,
-        url,
+      // CHECK DUPLICATE: Check if same URL already exists
+      const duplicateLink = allData.links.find(l => l.url === url && l.status !== 'expire');
+      if (duplicateLink) {
+        errorMsg.textContent = '❌ Duplicate Link! This URL already exists in the system.';
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      // Clear error on success
+      errorMsg.style.display = 'none';
+      
+      const newLink = {
+        text: linkText.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+        url: url,
         status: 'pending',
         addedBy: currentUser.id,
         addedByName: currentUser.name,
-        claimedBy: null,
-        claimedByName: null,
         timestamp: new Date().toISOString()
-      });
+      };
 
+      await db.collection('links').add(newLink);
       await db.collection('users').doc(currentUser.id).set({
         totalLinks: increment(1)
       }, { merge: true });
@@ -557,58 +605,58 @@
     }
 
     async function getLink() {
-      const pendingLink = allData.links.find(link => link.status === 'pending');
-      if (!pendingLink) return alert('❌ No available links!');
-
+      const errorMsg = document.getElementById('employeeErrorMsg');
+      
+      // CHECK: Employee already has active claimed link?
       const myActive = allData.links.filter(l => l.claimedBy === currentUser.id && l.status === 'claimed');
-      if (myActive.length > 0) return alert('Finish your current claimed link first!');
+      if (myActive.length > 0) {
+        errorMsg.textContent = '❌ You already have an active link! Finish it (Success/Expire) before taking another.';
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      const pendingLink = allData.links.find(link => link.status === 'pending');
+      if (!pendingLink) {
+        errorMsg.textContent = '❌ No available links!';
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      // Clear error on success
+      errorMsg.style.display = 'none';
 
       try {
         await db.runTransaction(async (t) => {
           const ref = db.collection('links').doc(pendingLink.id);
           const snap = await t.get(ref);
-          if (!snap.exists || snap.data().status !== 'pending') throw new Error('Taken');
-          t.update(ref, {
-            status: 'claimed',
-            claimedBy: currentUser.id,
-            claimedByName: currentUser.name
-          });
+          if (!snap.exists || snap.data().status !== 'pending') throw "Taken";
+          t.update(ref, { status: 'claimed', claimedBy: currentUser.id, claimedByName: currentUser.name });
         });
-
+        
         await db.collection('users').doc(currentUser.id).set({
           totalLinks: increment(1)
         }, { merge: true });
-
+        
+        alert(`✅ Link claimed by ${currentUser.name}!\n\n${pendingLink.text}`);
       } catch (e) {
-        alert('❌ Link taken by someone else! Try again.');
+        errorMsg.textContent = '❌ Link taken by someone else! Try again.';
+        errorMsg.style.display = 'block';
       }
     }
 
-    async function markSuccess(id) {
-      const link = allData.links.find(l => l.id === id);
-      if (!link) return alert('❌ Link not found!');
-      if (link.claimedBy !== currentUser.id) return alert('❌ You can only mark your OWN links!');
-      if (link.status !== 'claimed') return alert('❌ Only claimed links can be marked success!');
-
-      await db.collection('links').doc(id).set({ status: 'success' }, { merge: true });
+    async function markSuccess(id) { 
+      await db.collection('links').doc(id).update({ status: 'success' });
       await db.collection('users').doc(currentUser.id).set({
         successCount: increment(1)
       }, { merge: true });
-
       alert('✅ Link marked as SUCCESS!');
     }
-
-    async function markExpire(id) {
-      const link = allData.links.find(l => l.id === id);
-      if (!link) return alert('❌ Link not found!');
-      if (link.claimedBy !== currentUser.id) return alert('❌ You can only mark your OWN links!');
-      if (link.status !== 'claimed') return alert('❌ Only claimed links can be marked expire!');
-
-      await db.collection('links').doc(id).set({ status: 'expire' }, { merge: true });
+    
+    async function markExpire(id) { 
+      await db.collection('links').doc(id).update({ status: 'expire' });
       await db.collection('users').doc(currentUser.id).set({
         failCount: increment(1)
       }, { merge: true });
-
       alert('❌ Link marked as EXPIRE!');
     }
 
@@ -622,30 +670,23 @@
     function renderAdminLinks() {
       const list = document.getElementById('adminLinksList');
       const links = allData.links.filter(l => l.addedBy === currentUser.id);
-      if (!links.length) {
-        list.innerHTML = '<p>No links added.</p>';
-        return;
-      }
       list.innerHTML = links.map(link => `
         <div class="link-item">
           <div><strong>${link.text}</strong><span class="link-status ${statusBadge(link.status)[0]}">${statusBadge(link.status)[1]}</span></div>
-          <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
           <div class="link-meta">Claimed by: ${link.claimedByName || 'Pending'}</div>
+          <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
         </div>
-      `).join('');
+      `).join('') || '<p>No links added.</p>';
     }
 
     function renderEmployeeLinks() {
       const list = document.getElementById('employeeLinksList');
       const links = allData.links.filter(l => l.claimedBy === currentUser.id);
-      if (!links.length) {
-        list.innerHTML = '<p>No links claimed.</p>';
-        return;
-      }
       list.innerHTML = links.map(link => `
         <div class="link-item">
           <div><strong>${link.text}</strong><span class="link-status ${statusBadge(link.status)[0]}">${statusBadge(link.status)[1]}</span></div>
           <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
+          <div class="link-meta">Added by: ${link.addedByName || 'Unknown'}</div>
           ${link.status === 'claimed' ? `
             <div class="employee-link-buttons" style="margin-top:10px;">
               <button type="button" class="success-btn" onclick="markSuccess('${link.id}')">✅ Success</button>
@@ -653,22 +694,22 @@
             </div>
           ` : ''}
         </div>
-      `).join('');
+      `).join('') || '<p>No links claimed.</p>';
     }
 
     function renderAvailableLinks() {
       const list = document.getElementById('availableLinksList');
       const links = allData.links.filter(l => l.status === 'pending');
+      // Sort by timestamp (oldest first - line by line order)
+      links.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       list.innerHTML = links.map(link => `
         <div class="link-item">
           <div><strong>${link.text}</strong></div>
-          <div class="link-meta">Added by: ${link.addedByName}</div>
+          <div class="link-meta"><a href="${link.url}" target="_blank">${link.url}</a></div>
+          <div class="link-meta">Added by: ${link.addedByName} | Time: ${link.timestamp ? new Date(link.timestamp).toLocaleTimeString() : '-'}</div>
         </div>
       `).join('') || '<p>No pending links.</p>';
     }
-
-    document.getElementById('ownerSecret').addEventListener('input', checkLoginInputs);
-    document.getElementById('userName').addEventListener('input', checkLoginInputs);
   </script>
 </body>
 </html>
