@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Link Management System - Firebase Database</title>
+  <title>Link Management System - Ultimate Version</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -89,7 +89,7 @@
     .report-table tr:nth-child(even) { background-color: #f9f9f9; }
     .export-btn { background: #17a2b8; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; margin-bottom: 15px; transition: 0.3s; display: block; width: 100%; text-align: center; font-weight: bold; }
     .export-btn:hover { background: #138496; }
-    .export-btn-detail { background: #8e44ad; margin-bottom: 30px; }
+    .export-btn-detail { background: #8e44ad; margin-bottom: 15px; }
     .export-btn-detail:hover { background: #732d91; }
 
     .owner-dashboard {
@@ -129,9 +129,64 @@
     .available-count { color: #667eea; font-weight: bold; margin-left: 10px; }
     .error-msg { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 8px; margin-bottom: 15px; display: none; }
     
+    /* Target Achievement Notification */
+    .target-notification {
+      position: fixed; top: 20px; right: 20px; background: #d4edda; border: 2px solid #28a745;
+      padding: 20px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+      z-index: 2000; display: none; animation: slideIn 0.5s ease; max-width: 350px;
+    }
+    .target-notification.show { display: block; }
+    .target-notification h4 { color: #155724; margin-bottom: 10px; font-size: 1.4em; }
+    .target-notification p { color: #155724; font-size: 1.1em; margin: 5px 0; }
+    .target-notification .highlight { color: #e74c3c; font-weight: bold; font-size: 1.3em; }
+    @keyframes slideIn {
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    /* Target Progress Bar */
+    .target-progress { 
+      background: #f8f9fa; border: 2px solid #667eea; padding: 20px; border-radius: 10px; 
+      margin-bottom: 20px; box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    }
+    .target-progress h3 { color: #667eea; margin-bottom: 15px; font-size: 1.3em; }
+    .progress-bar { 
+      background: #e9ecef; height: 40px; border-radius: 8px; overflow: hidden; position: relative;
+    }
+    .progress-fill { 
+      background: linear-gradient(90deg, #28a745, #5cd85c); height: 100%; 
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: bold; font-size: 1.2em; transition: width 0.5s ease;
+    }
+    .progress-fill.over-target { background: linear-gradient(90deg, #e74c3c, #ff6b6b); }
+    .progress-text { 
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%); 
+      color: #333; font-weight: bold; font-size: 1em;
+    }
+    .target-info { 
+      display: flex; justify-content: space-between; margin-top: 10px; 
+      font-weight: bold; color: #666;
+    }
+    .target-info .current { color: #28a745; font-size: 1.2em; }
+    .target-info .target { color: #667eea; font-size: 1.2em; }
+    .target-rank { 
+      background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; 
+      margin-top: 15px; text-align: center; font-weight: bold;
+    }
+    
+    /* Live Timer */
+    .live-timer {
+      background: #e3f2fd; color: #1976d2; padding: 8px 15px; border-radius: 6px;
+      font-weight: bold; font-size: 1.1em; display: inline-block; margin-left: 10px;
+      border: 2px solid #1976d2;
+    }
+    .live-timer.warning { background: #fff3cd; color: #856404; border-color: #856404; }
+    .live-timer.critical { background: #f8d7da; color: #721c24; border-color: #721c24; }
+    
     @media (max-width: 768px) {
       .panels, .stat-row, .role-selection { grid-template-columns: 1fr; }
       .header h1 { font-size: 1.8em; }
+      .target-notification { right: 10px; left: 10px; max-width: none; }
     }
   </style>
 </head>
@@ -154,12 +209,20 @@
     </div>
   </div>
 
+  <!-- Target Achievement Notification -->
+  <div class="target-notification" id="targetNotification">
+    <h4>🎯 TARGET ACHIEVED!</h4>
+    <p><span class="highlight" id="notifName"></span> ne apna <strong>SUCCESS TARGET</strong> achieve kar liya!</p>
+    <p>✅ Success Count: <span class="highlight" id="notifCount"></span></p>
+    <p>Next Target: <span class="highlight" id="notifNextTarget"></span> SUCCESS</p>
+  </div>
+
   <div class="loading" id="loading">🔄 Loading data from database...</div>
 
   <div class="container" id="mainContent" style="display:none;">
     <div class="header">
-      <h1>🔗 Link Management System</h1>
-      <p>Secure User-Based Link Tracking - Real Database</p>
+      <h1>🔗 Link Management System - Ultimate</h1>
+      <p>Success Only Target + Live Timer + Smart Notifications</p>
       <div class="user-info">
         <span id="currentUserDisplay"></span>
         <button class="logout-btn" onclick="logout()">🚪 Logout</button>
@@ -169,8 +232,9 @@
     <div class="owner-dashboard" id="ownerDashboard">
       <h2>🔑 Owner Dashboard & Reports</h2>
       
-      <button class="export-btn" onclick="downloadOwnerSummaryCSV()">📊 Download Users Summary (CSV)</button>
-      <button class="export-btn export-btn-detail" onclick="downloadDetailedLinkReportCSV()">📋 Download Detailed Link Log (CSV)</button>
+      <button class="export-btn" onclick="downloadAdminCSV()">📊 Download Admin Reports (CSV)</button>
+      <button class="export-btn export-btn-detail" onclick="downloadEmployeeCSV()">📋 Download Employee Reports (CSV)</button>
+      <button class="export-btn export-btn-detail" onclick="downloadDetailedLinkReportCSV()">📝 Download Detailed Link Log (CSV)</button>
       
       <div class="report-card">
         <h3 style="color:#667eea;">👨‍💼 Admin Performance Report</h3>
@@ -181,7 +245,7 @@
                 <th>Name</th>
                 <th>Total Added</th>
                 <th>✅ Success</th>
-                <th>❌ Expire/Fail</th>
+                <th>❌ Expire</th>
                 <th>Success Rate</th>
               </tr>
             </thead>
@@ -199,8 +263,9 @@
                 <th>Name</th>
                 <th>Total Claimed</th>
                 <th>✅ Success</th>
-                <th>❌ Expire/Fail</th>
+                <th>❌ Expire</th>
                 <th>Success Rate</th>
+                <th>Success Target</th>
               </tr>
             </thead>
             <tbody id="employeeSummaryBody"></tbody>
@@ -232,10 +297,31 @@
 
       <div class="panel" id="employeePanel" style="display:none;">
         <h2>👷 Employee Panel</h2>
-        <p style="color:#666; margin-bottom:20px;">
+        <p style="color:#666; margin-bottom:10px;">
           Claiming links as: <strong id="employeeNameDisplay" style="color:#28a745;"></strong>
           <span id="availableCount" class="available-count"></span>
         </p>
+
+        <!-- Target Progress - SUCCESS ONLY -->
+        <div class="target-progress">
+          <h3>🎯 Your SUCCESS Target Progress</h3>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%;">
+              <span id="progressText">0 / 125</span>
+            </div>
+            <span class="progress-text" id="progressPercent">0%</span>
+          </div>
+          <div class="target-info">
+            <span class="current">✅ Success: <span id="currentCount">0</span></span>
+            <span class="target">Target: <span id="targetCount">125</span></span>
+          </div>
+          <div class="target-rank" id="targetRank">
+            🔥 Keep going! Next success target: 150
+          </div>
+          <p style="text-align:center; margin-top:10px; color:#666; font-size:0.9em;">
+            <strong>Note:</strong> Sirf SUCCESS count hoga (Expire nahi, Total nahi)
+          </p>
+        </div>
 
         <div class="report-card" id="employeeReportCard"></div>
         <div class="error-msg" id="employeeErrorMsg"></div>
@@ -272,10 +358,29 @@
 
     let currentUser = null;
     let userRole = null;
-    const OWNER_SECRET = "RAVIAMITOWNER";
+    const OWNER_SECRET = "RAVIAP";
     let allData = { users: {}, links: [] };
     let usersListener = null;
     let linksListener = null;
+    let timerInterval = null;
+
+    // Dynamic Target Levels - SUCCESS ONLY
+    const TARGET_LEVELS = [125, 150, 200, 250, 300, 400, 500];
+    
+    function getNextTarget(current) {
+      for (let level of TARGET_LEVELS) {
+        if (current >= level) continue;
+        return level;
+      }
+      return 500;
+    }
+
+    function getCurrentTarget(current) {
+      for (let i = TARGET_LEVELS.length - 1; i >= 0; i--) {
+        if (current >= TARGET_LEVELS[i]) return TARGET_LEVELS[i];
+      }
+      return 125;
+    }
 
     function normalizeName(name) { return name.trim().toUpperCase(); }
     function displayName(name) { return name.trim(); }
@@ -330,6 +435,7 @@
         document.getElementById('loginModal').style.display = 'none';
         setupListeners();
         updateUI();
+        startTimer();
         return;
       }
 
@@ -361,6 +467,7 @@
       document.getElementById('loginModal').style.display = 'none';
       setupListeners();
       updateUI();
+      if (userRole === 'employee') startTimer();
     }
 
     function setupListeners() {
@@ -385,8 +492,40 @@
     function logout() {
       if (usersListener) usersListener();
       if (linksListener) linksListener();
+      if (timerInterval) clearInterval(timerInterval);
       currentUser = null; userRole = null;
       location.reload(); 
+    }
+
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (currentUser && currentUser.role === 'employee') {
+          updateTimers();
+        }
+      }, 1000);
+    }
+
+    function updateTimers() {
+      const claimedLinks = allData.links.filter(l => l.claimedBy === currentUser.id && l.status === 'claimed');
+      claimedLinks.forEach(link => {
+        const timerElement = document.getElementById(`timer-${link.id}`);
+        if (timerElement) {
+          const addedTime = new Date(link.timestamp);
+          const currentTime = new Date();
+          const diffMs = currentTime - addedTime;
+          const diffMins = Math.floor(diffMs / 60000);
+          const diffSecs = Math.floor((diffMs % 60000) / 1000);
+          
+          timerElement.textContent = `⏱️ ${diffMins}m ${diffSecs}s`;
+          
+          if (diffMins > 5) {
+            timerElement.className = 'live-timer warning';
+          } else if (diffMins > 10) {
+            timerElement.className = 'live-timer critical';
+          }
+        }
+      });
     }
 
     function calculateStats(userId, roleType) {
@@ -402,16 +541,46 @@
       return { total, success, expire, rate };
     }
 
+    // UPDATED: Check target based on SUCCESS ONLY
+    function checkTargetAchievement(userId, newName, successCount) {
+      const user = allData.users[userId];
+      if (!user || user.role !== 'employee') return;
+      
+      const oldSuccess = user.successCount || 0;
+      const oldTarget = getCurrentTarget(oldSuccess);
+      const newTarget = getCurrentTarget(successCount);
+      
+      // Target achieved with SUCCESS ONLY!
+      if (successCount >= oldTarget && successCount > oldSuccess) {
+        const nextTarget = getNextTarget(successCount);
+        
+        const notif = document.getElementById('targetNotification');
+        document.getElementById('notifName').textContent = newName;
+        document.getElementById('notifCount').textContent = successCount;
+        document.getElementById('notifNextTarget').textContent = nextTarget;
+        notif.classList.add('show');
+        
+        setTimeout(() => {
+          notif.classList.remove('show');
+        }, 8000);
+        
+        db.collection('users').doc(userId).set({
+          lastTargetAchieved: oldTarget,
+          targetAchievementTime: new Date().toISOString()
+        }, { merge: true });
+      }
+    }
+
     function renderUserReportCard(elementId, stats, roleTitle) {
       document.getElementById(elementId).innerHTML = `
         <h3>📊 My Performance Report</h3>
         <div class="stat-row">
-          <div class="stat-box total"><strong>${stats.total}</strong><span>Total ${roleTitle}</span></div>
+          <div class="stat-box total"><strong>${stats.total}</strong><span>Total Claimed</span></div>
           <div class="stat-box success"><strong>${stats.success}</strong><span>✅ Success</span></div>
-          <div class="stat-box fail"><strong>${stats.expire}</strong><span>❌ Expire/Fail</span></div>
+          <div class="stat-box fail"><strong>${stats.expire}</strong><span>❌ Expire</span></div>
         </div>
         <p style="text-align:center; margin-top:15px; font-weight:bold; color:#333;">
-          Target Hit Rate: <span style="color:${stats.rate > 70 ? '#28a745' : '#e74c3c'}">${stats.rate}%</span>
+          Success Rate: <span style="color:${stats.rate > 70 ? '#28a745' : '#e74c3c'}">${stats.rate}%</span>
         </p>
       `;
     }
@@ -421,7 +590,6 @@
       const roleIcon = currentUser.role === 'admin' ? '👨‍💼' : currentUser.role === 'employee' ? '👷' : '🔑';
       document.getElementById('currentUserDisplay').textContent = `${roleIcon} ${currentUser.name} (${currentUser.role})`;
 
-      // Hide error messages on UI update
       document.getElementById('adminErrorMsg').style.display = 'none';
       document.getElementById('employeeErrorMsg').style.display = 'none';
 
@@ -456,12 +624,48 @@
         
         const stats = calculateStats(currentUser.id, 'employee');
         renderUserReportCard('employeeReportCard', stats, 'Links Claimed');
+        
+        // UPDATED: SUCCESS ONLY for target progress
+        updateTargetProgress(stats.success);
+        
         renderEmployeeLinks();
         renderAvailableLinks();
       }
 
       document.getElementById('loading').style.display = 'none';
       document.getElementById('mainContent').style.display = 'block';
+    }
+
+    // UPDATED: Success only progress
+    function updateTargetProgress(successCount) {
+      const currentTarget = getCurrentTarget(successCount);
+      const nextTarget = getNextTarget(successCount);
+      const percentage = Math.min((successCount / currentTarget) * 100, 100);
+      
+      const progressFill = document.getElementById('progressFill');
+      const progressText = document.getElementById('progressText');
+      const progressPercent = document.getElementById('progressPercent');
+      const currentCountEl = document.getElementById('currentCount');
+      const targetCountEl = document.getElementById('targetCount');
+      const targetRank = document.getElementById('targetRank');
+      
+      progressFill.style.width = percentage + '%';
+      progressText.textContent = `${successCount} / ${currentTarget}`;
+      progressPercent.textContent = `${percentage.toFixed(1)}%`;
+      currentCountEl.textContent = successCount;
+      targetCountEl.textContent = currentTarget;
+      
+      if (successCount >= currentTarget) {
+        progressFill.className = 'progress-fill over-target';
+        targetRank.textContent = `🎯 SUCCESS TARGET ACHIEVED! Next: ${nextTarget} ✅`;
+        targetRank.style.background = '#d4edda';
+        targetRank.style.color = '#155724';
+      } else {
+        progressFill.className = 'progress-fill';
+        targetRank.textContent = `Keep going! Next success target: ${nextTarget}`;
+        targetRank.style.background = '#fff3cd';
+        targetRank.style.color = '#856404';
+      }
     }
 
     function renderOwnerDatabase() {
@@ -481,32 +685,56 @@
         });
       }
 
-      if (employees.length === 0) employeeSummaryBody.innerHTML = '<tr><td colspan="5">No Employees found.</td></tr>';
+      if (employees.length === 0) employeeSummaryBody.innerHTML = '<tr><td colspan="6">No Employees found.</td></tr>';
       else {
         employees.forEach(employee => {
           const stats = calculateStats(employee.id, 'employee');
-          employeeSummaryBody.insertAdjacentHTML('beforeend', `<tr><td><strong>👷 ${employee.name}</strong></td><td>${stats.total}</td><td style="color:#155724; font-weight:bold;">${stats.success}</td><td style="color:#721c24; font-weight:bold;">${stats.expire}</td><td>${stats.rate}%</td></tr>`);
+          const target = getCurrentTarget(stats.success);
+          const targetStatus = stats.success >= target ? '✅ Achieved' : '🔄 In Progress';
+          employeeSummaryBody.insertAdjacentHTML('beforeend', `<tr><td><strong>👷 ${employee.name}</strong></td><td>${stats.total}</td><td style="color:#155724; font-weight:bold;">${stats.success}</td><td style="color:#721c24; font-weight:bold;">${stats.expire}</td><td>${stats.rate}%</td><td>${targetStatus} (${target})</td></tr>`);
         });
       }
     }
 
-    function downloadOwnerSummaryCSV() {
-      const users = Object.values(allData.users);
-      if(!users.length) return alert("No data to download!");
+    function downloadAdminCSV() {
+      const admins = Object.values(allData.users).filter(u => u.role === 'admin');
+      if(!admins.length) return alert("No admins found!");
 
-      let csvContent = "data:text/csv;charset=utf-8,Category,Name,Total Work,Success,Expire,Success Rate (%)\n";
-      users.sort((a, b) => a.role.localeCompare(b.role));
+      let csvContent = "data:text/csv;charset=utf-8,Admin Name,Total Links Added,Success Count,Expire Count,Success Rate (%),Join Date\n";
 
-      users.forEach(user => {
-        const stats = calculateStats(user.id, user.role);
-        const roleText = user.role === 'admin' ? 'Admin' : 'Employee';
-        csvContent += `${roleText},${user.name},${stats.total},${stats.success},${stats.expire},${stats.rate}%\n`;
+      admins.forEach(admin => {
+        const stats = calculateStats(admin.id, 'admin');
+        const joinDate = admin.joinedAt ? new Date(admin.joinedAt).toLocaleString() : '-';
+        csvContent += `${admin.name},${stats.total},${stats.success},${stats.expire},${stats.rate}%,${joinDate}\n`;
       });
 
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Users_Summary_${new Date().toLocaleDateString()}.csv`);
+      link.setAttribute("download", `Admin_Report_${new Date().toLocaleDateString()}_${new Date().toLocaleTimeString()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function downloadEmployeeCSV() {
+      const employees = Object.values(allData.users).filter(u => u.role === 'employee');
+      if(!employees.length) return alert("No employees found!");
+
+      let csvContent = "data:text/csv;charset=utf-8,Employee Name,Total Claimed,✅ Success,❌ Expire,Success Rate (%),Success Target,Target Status,Join Date\n";
+
+      employees.forEach(employee => {
+        const stats = calculateStats(employee.id, 'employee');
+        const target = getCurrentTarget(stats.success);
+        const targetStatus = stats.success >= target ? 'ACHIEVED' : 'IN PROGRESS';
+        const joinDate = employee.joinedAt ? new Date(employee.joinedAt).toLocaleString() : '-';
+        csvContent += `${employee.name},${stats.total},${stats.success},${stats.expire},${stats.rate}%,${target},${targetStatus},${joinDate}\n`;
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `Employee_Report_${new Date().toLocaleDateString()}_${new Date().toLocaleTimeString()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -516,7 +744,7 @@
       if (!allData.links.length) return alert("No link data to download!");
 
       let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "Link ID,Link Text,Extracted Email,Status,Added By (Admin),Claimed By (Employee),Date Added\n";
+      csvContent += "Link ID,Link Text,Extracted Email,Status,Added By (Admin),Claimed By (Employee),Date Added,Time Taken (mins)\n";
 
       const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i;
 
@@ -531,27 +759,32 @@
         let addedBy = link.addedByName || 'Unknown';
         let claimedBy = link.claimedByName || 'Not Claimed';
         let dateAdded = link.timestamp ? new Date(link.timestamp).toLocaleString() : '-';
+        
+        let timeTaken = '-';
+        if (link.timestamp && (link.status === 'success' || link.status === 'expire')) {
+          const addedTime = new Date(link.timestamp);
+          const endTime = new Date();
+          const diffMs = endTime - addedTime;
+          timeTaken = Math.floor(diffMs / 60000);
+        }
 
-        csvContent += `${link.id},${escapedText},${extractedEmail},${status},"${addedBy}","${claimedBy}","${dateAdded}"\n`;
+        csvContent += `${link.id},${escapedText},${extractedEmail},${status},"${addedBy}","${claimedBy}","${dateAdded}",${timeTaken}\n`;
       });
 
       const encodedUri = encodeURI(csvContent);
       const linkNode = document.createElement("a");
       linkNode.setAttribute("href", encodedUri);
-      linkNode.setAttribute("download", `Detailed_Links_Log_${new Date().toLocaleDateString()}.csv`);
+      linkNode.setAttribute("download", `Detailed_Links_Log_${new Date().toLocaleDateString()}_${new Date().toLocaleTimeString()}.csv`);
       document.body.appendChild(linkNode);
       linkNode.click();
       document.body.removeChild(linkNode);
     }
 
-    // UPDATED: Extract URL from any format (with or without http, with text before)
     function extractURL(linkText) {
-      // Match URL inside brackets [url]
       const urlMatch = linkText.match(/\[([^\]]+)\]/);
       if (urlMatch) {
         return urlMatch[1].trim();
       }
-      // If no brackets, return the whole text
       return linkText.trim();
     }
 
@@ -566,7 +799,6 @@
         return;
       }
 
-      // Extract URL from brackets [url]
       const url = extractURL(linkText);
       
       if (!url) {
@@ -575,7 +807,6 @@
         return;
       }
 
-      // CHECK DUPLICATE: Check if same URL already exists
       const duplicateLink = allData.links.find(l => l.url === url && l.status !== 'expire');
       if (duplicateLink) {
         errorMsg.textContent = '❌ Duplicate Link! This URL already exists in the system.';
@@ -583,7 +814,6 @@
         return;
       }
 
-      // Clear error on success
       errorMsg.style.display = 'none';
       
       const newLink = {
@@ -607,7 +837,6 @@
     async function getLink() {
       const errorMsg = document.getElementById('employeeErrorMsg');
       
-      // CHECK: Employee already has active claimed link?
       const myActive = allData.links.filter(l => l.claimedBy === currentUser.id && l.status === 'claimed');
       if (myActive.length > 0) {
         errorMsg.textContent = '❌ You already have an active link! Finish it (Success/Expire) before taking another.';
@@ -622,7 +851,6 @@
         return;
       }
 
-      // Clear error on success
       errorMsg.style.display = 'none';
 
       try {
@@ -645,18 +873,25 @@
     }
 
     async function markSuccess(id) { 
-      await db.collection('links').doc(id).update({ status: 'success' });
+      const link = allData.links.find(l => l.id === id);
+      await db.collection('links').doc(id).update({ status: 'success', completedAt: new Date().toISOString() });
       await db.collection('users').doc(currentUser.id).set({
         successCount: increment(1)
       }, { merge: true });
+      
+      // UPDATED: Check target with successCount ONLY
+      const newSuccessCount = currentUser.successCount ? currentUser.successCount + 1 : 1;
+      checkTargetAchievement(currentUser.id, currentUser.name, newSuccessCount);
+      
       alert('✅ Link marked as SUCCESS!');
     }
     
     async function markExpire(id) { 
-      await db.collection('links').doc(id).update({ status: 'expire' });
+      await db.collection('links').doc(id).update({ status: 'expire', completedAt: new Date().toISOString() });
       await db.collection('users').doc(currentUser.id).set({
         failCount: increment(1)
       }, { merge: true });
+      
       alert('❌ Link marked as EXPIRE!');
     }
 
@@ -688,6 +923,9 @@
           <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
           <div class="link-meta">Added by: ${link.addedByName || 'Unknown'}</div>
           ${link.status === 'claimed' ? `
+            <div style="margin-top:10px;">
+              <span class="live-timer" id="timer-${link.id}">⏱️ 0m 0s</span>
+            </div>
             <div class="employee-link-buttons" style="margin-top:10px;">
               <button type="button" class="success-btn" onclick="markSuccess('${link.id}')">✅ Success</button>
               <button type="button" class="expire-btn" onclick="markExpire('${link.id}')">❌ Expire</button>
@@ -700,7 +938,6 @@
     function renderAvailableLinks() {
       const list = document.getElementById('availableLinksList');
       const links = allData.links.filter(l => l.status === 'pending');
-      // Sort by timestamp (oldest first - line by line order)
       links.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       list.innerHTML = links.map(link => `
         <div class="link-item">
