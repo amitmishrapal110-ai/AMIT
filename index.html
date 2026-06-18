@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Link Management System - Ultimate Version</title>
+  <title>Link Management System - Ultimate V3</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -139,6 +139,10 @@
     .target-notification h4 { color: #155724; margin-bottom: 10px; font-size: 1.4em; }
     .target-notification p { color: #155724; font-size: 1.1em; margin: 5px 0; }
     .target-notification .highlight { color: #e74c3c; font-weight: bold; font-size: 1.3em; }
+    .target-notification .role-badge { 
+      background: #667eea; color: white; padding: 3px 10px; border-radius: 4px; 
+      font-size: 0.9em; margin-left: 10px;
+    }
     @keyframes slideIn {
       from { transform: translateX(400px); opacity: 0; }
       to { transform: translateX(0); opacity: 1; }
@@ -212,7 +216,7 @@
   <!-- Target Achievement Notification -->
   <div class="target-notification" id="targetNotification">
     <h4>🎯 TARGET ACHIEVED!</h4>
-    <p><span class="highlight" id="notifName"></span> ne apna <strong>SUCCESS TARGET</strong> achieve kar liya!</p>
+    <p><span class="highlight" id="notifName"></span><span class="role-badge" id="notifRole"></span></p>
     <p>✅ Success Count: <span class="highlight" id="notifCount"></span></p>
     <p>Next Target: <span class="highlight" id="notifNextTarget"></span> SUCCESS</p>
   </div>
@@ -221,8 +225,8 @@
 
   <div class="container" id="mainContent" style="display:none;">
     <div class="header">
-      <h1>🔗 Link Management System - Ultimate</h1>
-      <p>Success Only Target + Live Timer + Smart Notifications</p>
+      <h1>🔗 Link Management System - Ultimate V3</h1>
+      <p>Success Only Target + NEW First + Admin Target 500→1000</p>
       <div class="user-info">
         <span id="currentUserDisplay"></span>
         <button class="logout-btn" onclick="logout()">🚪 Logout</button>
@@ -247,6 +251,7 @@
                 <th>✅ Success</th>
                 <th>❌ Expire</th>
                 <th>Success Rate</th>
+                <th>Target Status</th>
               </tr>
             </thead>
             <tbody id="adminSummaryBody"></tbody>
@@ -265,7 +270,7 @@
                 <th>✅ Success</th>
                 <th>❌ Expire</th>
                 <th>Success Rate</th>
-                <th>Success Target</th>
+                <th>Target Status</th>
               </tr>
             </thead>
             <tbody id="employeeSummaryBody"></tbody>
@@ -278,7 +283,28 @@
       
       <div class="panel" id="adminPanel" style="display:none;">
         <h2>👨‍💼 Admin Panel</h2>
-        <p style="color:#666; margin-bottom:20px;">Adding links as: <strong id="adminNameDisplay" style="color:#667eea;"></strong></p>
+        <p style="color:#666; margin-bottom:10px;">Adding links as: <strong id="adminNameDisplay" style="color:#667eea;"></strong></p>
+
+        <!-- Admin Target Progress -->
+        <div class="target-progress">
+          <h3>🎯 Admin SUCCESS Target (500→1000)</h3>
+          <div class="progress-bar">
+            <div class="progress-fill" id="adminProgressFill" style="width: 0%;">
+              <span id="adminProgressText">0 / 500</span>
+            </div>
+            <span class="progress-text" id="adminProgressPercent">0%</span>
+          </div>
+          <div class="target-info">
+            <span class="current">✅ Success: <span id="adminCurrentCount">0</span></span>
+            <span class="target">Target: <span id="adminTargetCount">500</span></span>
+          </div>
+          <div class="target-rank" id="adminTargetRank">
+            🔥 Keep going! Next admin target: 1000
+          </div>
+          <p style="text-align:center; margin-top:10px; color:#666; font-size:0.9em;">
+            <strong>Note:</strong> Sirf SUCCESS count hoga (Expire nahi)
+          </p>
+        </div>
         
         <div class="report-card" id="adminReportCard"></div>
         <div class="error-msg" id="adminErrorMsg"></div>
@@ -290,7 +316,7 @@
         <button class="btn" onclick="addLink()">➕ Add Link</button>
         
         <div style="margin-top:30px;">
-          <h3 style="color:#667eea; margin-bottom:15px;">📋 Your Added Links</h3>
+          <h3 style="color:#667eea; margin-bottom:15px;">📋 Your Added Links (NEW First)</h3>
           <div id="adminLinksList"></div>
         </div>
       </div>
@@ -329,7 +355,7 @@
         <button class="btn" onclick="getLink()" style="background:#28a745;">📥 Get Latest Available Link</button>
         
         <div style="margin-top:30px;">
-          <h3 style="color:#28a745; margin-bottom:15px;">📋 Your Claimed Links</h3>
+          <h3 style="color:#28a745; margin-bottom:15px;">📋 Your Claimed Links (NEW First)</h3>
           <div id="employeeLinksList"></div>
         </div>
       </div>
@@ -358,28 +384,30 @@
 
     let currentUser = null;
     let userRole = null;
-    const OWNER_SECRET = "RAVIAP";
+    const OWNER_SECRET = "RAVIAMIT";
     let allData = { users: {}, links: [] };
     let usersListener = null;
     let linksListener = null;
     let timerInterval = null;
 
-    // Dynamic Target Levels - SUCCESS ONLY
-    const TARGET_LEVELS = [125, 150, 200, 250, 300, 400, 500];
+    // Dynamic Target Levels - SUCCESS ONLY (Employee: 125→150→200...)
+    const EMPLOYEE_TARGETS = [125, 150, 200, 250, 300, 400, 500];
+    // Admin Targets: 500→1000→2000
+    const ADMIN_TARGETS = [500, 1000, 2000, 3000, 5000];
     
-    function getNextTarget(current) {
-      for (let level of TARGET_LEVELS) {
+    function getNextTarget(current, targets) {
+      for (let level of targets) {
         if (current >= level) continue;
         return level;
       }
-      return 500;
+      return targets[targets.length - 1];
     }
 
-    function getCurrentTarget(current) {
-      for (let i = TARGET_LEVELS.length - 1; i >= 0; i--) {
-        if (current >= TARGET_LEVELS[i]) return TARGET_LEVELS[i];
+    function getCurrentTarget(current, targets) {
+      for (let i = targets.length - 1; i >= 0; i--) {
+        if (current >= targets[i]) return targets[i];
       }
-      return 125;
+      return targets[0];
     }
 
     function normalizeName(name) { return name.trim().toUpperCase(); }
@@ -467,7 +495,7 @@
       document.getElementById('loginModal').style.display = 'none';
       setupListeners();
       updateUI();
-      if (userRole === 'employee') startTimer();
+      if (userRole === 'employee' || userRole === 'admin') startTimer();
     }
 
     function setupListeners() {
@@ -481,7 +509,7 @@
         if (currentUser) updateUI();
       });
 
-      linksListener = db.collection('links').orderBy('timestamp', 'asc').onSnapshot(snapshot => {
+      linksListener = db.collection('links').orderBy('timestamp', 'desc').onSnapshot(snapshot => {
         const nextLinks = [];
         snapshot.forEach(doc => { nextLinks.push({ id: doc.id, ...doc.data() }); });
         allData.links = nextLinks;
@@ -500,7 +528,7 @@
     function startTimer() {
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(() => {
-        if (currentUser && currentUser.role === 'employee') {
+        if (currentUser && (currentUser.role === 'employee' || currentUser.role === 'admin')) {
           updateTimers();
         }
       }, 1000);
@@ -541,21 +569,22 @@
       return { total, success, expire, rate };
     }
 
-    // UPDATED: Check target based on SUCCESS ONLY
-    function checkTargetAchievement(userId, newName, successCount) {
+    // UPDATED: Check target based on SUCCESS ONLY (Admin & Employee)
+    function checkTargetAchievement(userId, newName, successCount, role) {
       const user = allData.users[userId];
-      if (!user || user.role !== 'employee') return;
+      if (!user || user.role === 'owner') return;
       
       const oldSuccess = user.successCount || 0;
-      const oldTarget = getCurrentTarget(oldSuccess);
-      const newTarget = getCurrentTarget(successCount);
+      const targets = role === 'admin' ? ADMIN_TARGETS : EMPLOYEE_TARGETS;
+      const oldTarget = getCurrentTarget(oldSuccess, targets);
+      const newTarget = getCurrentTarget(successCount, targets);
       
-      // Target achieved with SUCCESS ONLY!
       if (successCount >= oldTarget && successCount > oldSuccess) {
-        const nextTarget = getNextTarget(successCount);
+        const nextTarget = getNextTarget(successCount, targets);
         
         const notif = document.getElementById('targetNotification');
         document.getElementById('notifName').textContent = newName;
+        document.getElementById('notifRole').textContent = role === 'admin' ? ' 👨‍💼 Admin' : ' 👷 Employee';
         document.getElementById('notifCount').textContent = successCount;
         document.getElementById('notifNextTarget').textContent = nextTarget;
         notif.classList.add('show');
@@ -575,7 +604,7 @@
       document.getElementById(elementId).innerHTML = `
         <h3>📊 My Performance Report</h3>
         <div class="stat-row">
-          <div class="stat-box total"><strong>${stats.total}</strong><span>Total Claimed</span></div>
+          <div class="stat-box total"><strong>${stats.total}</strong><span>Total ${roleTitle}</span></div>
           <div class="stat-box success"><strong>${stats.success}</strong><span>✅ Success</span></div>
           <div class="stat-box fail"><strong>${stats.expire}</strong><span>❌ Expire</span></div>
         </div>
@@ -609,6 +638,10 @@
         
         const stats = calculateStats(currentUser.id, 'admin');
         renderUserReportCard('adminReportCard', stats, 'Links Added');
+        
+        // Admin Target Progress
+        updateAdminTargetProgress(stats.success);
+        
         renderAdminLinks();
         renderAvailableLinks();
       } 
@@ -625,7 +658,7 @@
         const stats = calculateStats(currentUser.id, 'employee');
         renderUserReportCard('employeeReportCard', stats, 'Links Claimed');
         
-        // UPDATED: SUCCESS ONLY for target progress
+        // Employee Target Progress
         updateTargetProgress(stats.success);
         
         renderEmployeeLinks();
@@ -636,10 +669,9 @@
       document.getElementById('mainContent').style.display = 'block';
     }
 
-    // UPDATED: Success only progress
     function updateTargetProgress(successCount) {
-      const currentTarget = getCurrentTarget(successCount);
-      const nextTarget = getNextTarget(successCount);
+      const currentTarget = getCurrentTarget(successCount, EMPLOYEE_TARGETS);
+      const nextTarget = getNextTarget(successCount, EMPLOYEE_TARGETS);
       const percentage = Math.min((successCount / currentTarget) * 100, 100);
       
       const progressFill = document.getElementById('progressFill');
@@ -668,6 +700,38 @@
       }
     }
 
+    // NEW: Admin Target Progress
+    function updateAdminTargetProgress(successCount) {
+      const currentTarget = getCurrentTarget(successCount, ADMIN_TARGETS);
+      const nextTarget = getNextTarget(successCount, ADMIN_TARGETS);
+      const percentage = Math.min((successCount / currentTarget) * 100, 100);
+      
+      const progressFill = document.getElementById('adminProgressFill');
+      const progressText = document.getElementById('adminProgressText');
+      const progressPercent = document.getElementById('adminProgressPercent');
+      const currentCountEl = document.getElementById('adminCurrentCount');
+      const targetCountEl = document.getElementById('adminTargetCount');
+      const targetRank = document.getElementById('adminTargetRank');
+      
+      progressFill.style.width = percentage + '%';
+      progressText.textContent = `${successCount} / ${currentTarget}`;
+      progressPercent.textContent = `${percentage.toFixed(1)}%`;
+      currentCountEl.textContent = successCount;
+      targetCountEl.textContent = currentTarget;
+      
+      if (successCount >= currentTarget) {
+        progressFill.className = 'progress-fill over-target';
+        targetRank.textContent = `🎯 ADMIN SUCCESS TARGET ACHIEVED! Next: ${nextTarget} ✅`;
+        targetRank.style.background = '#d4edda';
+        targetRank.style.color = '#155724';
+      } else {
+        progressFill.className = 'progress-fill';
+        targetRank.textContent = `Keep going! Next admin target: ${nextTarget}`;
+        targetRank.style.background = '#fff3cd';
+        targetRank.style.color = '#856404';
+      }
+    }
+
     function renderOwnerDatabase() {
       const adminSummaryBody = document.getElementById('adminSummaryBody');
       const employeeSummaryBody = document.getElementById('employeeSummaryBody');
@@ -677,11 +741,13 @@
       const admins = users.filter(u => u.role === 'admin');
       const employees = users.filter(u => u.role === 'employee');
 
-      if (admins.length === 0) adminSummaryBody.innerHTML = '<tr><td colspan="5">No Admins found.</td></tr>';
+      if (admins.length === 0) adminSummaryBody.innerHTML = '<tr><td colspan="6">No Admins found.</td></tr>';
       else {
         admins.forEach(admin => {
           const stats = calculateStats(admin.id, 'admin');
-          adminSummaryBody.insertAdjacentHTML('beforeend', `<tr><td><strong>👨‍💼 ${admin.name}</strong></td><td>${stats.total}</td><td style="color:#155724; font-weight:bold;">${stats.success}</td><td style="color:#721c24; font-weight:bold;">${stats.expire}</td><td>${stats.rate}%</td></tr>`);
+          const target = getCurrentTarget(stats.success, ADMIN_TARGETS);
+          const targetStatus = stats.success >= target ? '✅ Achieved' : '🔄 In Progress';
+          adminSummaryBody.insertAdjacentHTML('beforeend', `<tr><td><strong>👨‍💼 ${admin.name}</strong></td><td>${stats.total}</td><td style="color:#155724; font-weight:bold;">${stats.success}</td><td style="color:#721c24; font-weight:bold;">${stats.expire}</td><td>${stats.rate}%</td><td>${targetStatus} (${target})</td></tr>`);
         });
       }
 
@@ -689,7 +755,7 @@
       else {
         employees.forEach(employee => {
           const stats = calculateStats(employee.id, 'employee');
-          const target = getCurrentTarget(stats.success);
+          const target = getCurrentTarget(stats.success, EMPLOYEE_TARGETS);
           const targetStatus = stats.success >= target ? '✅ Achieved' : '🔄 In Progress';
           employeeSummaryBody.insertAdjacentHTML('beforeend', `<tr><td><strong>👷 ${employee.name}</strong></td><td>${stats.total}</td><td style="color:#155724; font-weight:bold;">${stats.success}</td><td style="color:#721c24; font-weight:bold;">${stats.expire}</td><td>${stats.rate}%</td><td>${targetStatus} (${target})</td></tr>`);
         });
@@ -700,12 +766,14 @@
       const admins = Object.values(allData.users).filter(u => u.role === 'admin');
       if(!admins.length) return alert("No admins found!");
 
-      let csvContent = "data:text/csv;charset=utf-8,Admin Name,Total Links Added,Success Count,Expire Count,Success Rate (%),Join Date\n";
+      let csvContent = "data:text/csv;charset=utf-8,Admin Name,Total Added,✅ Success,❌ Expire,Success Rate (%),Admin Target,Target Status,Join Date\n";
 
       admins.forEach(admin => {
         const stats = calculateStats(admin.id, 'admin');
+        const target = getCurrentTarget(stats.success, ADMIN_TARGETS);
+        const targetStatus = stats.success >= target ? 'ACHIEVED' : 'IN PROGRESS';
         const joinDate = admin.joinedAt ? new Date(admin.joinedAt).toLocaleString() : '-';
-        csvContent += `${admin.name},${stats.total},${stats.success},${stats.expire},${stats.rate}%,${joinDate}\n`;
+        csvContent += `${admin.name},${stats.total},${stats.success},${stats.expire},${stats.rate}%,${target},${targetStatus},${joinDate}\n`;
       });
 
       const encodedUri = encodeURI(csvContent);
@@ -721,11 +789,11 @@
       const employees = Object.values(allData.users).filter(u => u.role === 'employee');
       if(!employees.length) return alert("No employees found!");
 
-      let csvContent = "data:text/csv;charset=utf-8,Employee Name,Total Claimed,✅ Success,❌ Expire,Success Rate (%),Success Target,Target Status,Join Date\n";
+      let csvContent = "data:text/csv;charset=utf-8,Employee Name,Total Claimed,✅ Success,❌ Expire,Success Rate (%),Employee Target,Target Status,Join Date\n";
 
       employees.forEach(employee => {
         const stats = calculateStats(employee.id, 'employee');
-        const target = getCurrentTarget(stats.success);
+        const target = getCurrentTarget(stats.success, EMPLOYEE_TARGETS);
         const targetStatus = stats.success >= target ? 'ACHIEVED' : 'IN PROGRESS';
         const joinDate = employee.joinedAt ? new Date(employee.joinedAt).toLocaleString() : '-';
         csvContent += `${employee.name},${stats.total},${stats.success},${stats.expire},${stats.rate}%,${target},${targetStatus},${joinDate}\n`;
@@ -879,9 +947,8 @@
         successCount: increment(1)
       }, { merge: true });
       
-      // UPDATED: Check target with successCount ONLY
       const newSuccessCount = currentUser.successCount ? currentUser.successCount + 1 : 1;
-      checkTargetAchievement(currentUser.id, currentUser.name, newSuccessCount);
+      checkTargetAchievement(currentUser.id, currentUser.name, newSuccessCount, currentUser.role);
       
       alert('✅ Link marked as SUCCESS!');
     }
@@ -902,26 +969,42 @@
       return ['pending', '⏳ Pending'];
     }
 
+    // UPDATED:.Admin links - NEW First (timestamp desc)
     function renderAdminLinks() {
       const list = document.getElementById('adminLinksList');
-      const links = allData.links.filter(l => l.addedBy === currentUser.id);
-      list.innerHTML = links.map(link => `
+      const myLinks = allData.links.filter(l => l.addedBy === currentUser.id);
+      // Sort by timestamp desc (NEW first)
+      myLinks.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      list.innerHTML = myLinks.map(link => `
         <div class="link-item">
           <div><strong>${link.text}</strong><span class="link-status ${statusBadge(link.status)[0]}">${statusBadge(link.status)[1]}</span></div>
           <div class="link-meta">Claimed by: ${link.claimedByName || 'Pending'}</div>
           <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
+          <div class="link-meta">Added: ${link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'}</div>
         </div>
       `).join('') || '<p>No links added.</p>';
     }
 
+    // UPDATED: Employee links - NEW First (claimed timestamp desc for claimed, then success/expire at bottom)
     function renderEmployeeLinks() {
       const list = document.getElementById('employeeLinksList');
-      const links = allData.links.filter(l => l.claimedBy === currentUser.id);
-      list.innerHTML = links.map(link => `
+      const myLinks = allData.links.filter(l => l.claimedBy === currentUser.id);
+      
+      // Sort: claimed (NEW) first, then success/expire at bottom
+      myLinks.sort((a, b) => {
+        // claimed links first (NEW coming)
+        if (a.status === 'claimed' && b.status !== 'claimed') return -1;
+        if (a.status !== 'claimed' && b.status === 'claimed') return 1;
+        // within same status, NEW first (timestamp desc)
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+      
+      list.innerHTML = myLinks.map(link => `
         <div class="link-item">
           <div><strong>${link.text}</strong><span class="link-status ${statusBadge(link.status)[0]}">${statusBadge(link.status)[1]}</span></div>
           <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
-          <div class="link-meta">Added by: ${link.addedByName || 'Unknown'}</div>
+          <div class="link-meta">Added by: ${link.addedByName || 'Unknown'} | Time: ${link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'}</div>
           ${link.status === 'claimed' ? `
             <div style="margin-top:10px;">
               <span class="live-timer" id="timer-${link.id}">⏱️ 0m 0s</span>
