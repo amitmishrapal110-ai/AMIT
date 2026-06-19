@@ -848,13 +848,10 @@
       document.body.removeChild(linkNode);
     }
 
-    function extractURL(linkText) {
-      const urlMatch = linkText.match(/\[([^\]]+)\]/);
-      if (urlMatch) {
-        return urlMatch[1].trim();
-      }
-      return linkText.trim();
-    }
+function extractURL(linkText) {
+  const match = linkText.match(/https?:\/\/[^\s\]]+/i);
+  return match ? match[0].trim() : '';
+}
 
     async function addLink() {
       const linkInput = document.getElementById('adminLink');
@@ -867,7 +864,7 @@
         return;
       }
 
-      const url = extractURL(linkText);
+     const url = extractURL(linkText);
       
       if (!url) {
         errorMsg.textContent = '❌ Please enter a valid URL!';
@@ -884,14 +881,14 @@
 
       errorMsg.style.display = 'none';
       
-      const newLink = {
-        text: linkText.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
-        url: url,
-        status: 'pending',
-        addedBy: currentUser.id,
-        addedByName: currentUser.name,
-        timestamp: new Date().toISOString()
-      };
+const newLink = {
+  text: linkText.replace(/https?:\/\/[^\s\]]+/gi, '').replace(/\[\]/g, '').trim(),
+  url: url,
+  status: 'pending',
+  addedBy: currentUser.id,
+  addedByName: currentUser.name,
+  timestamp: new Date().toISOString()
+};
 
       await db.collection('links').add(newLink);
       await db.collection('users').doc(currentUser.id).set({
@@ -970,66 +967,82 @@
     }
 
     // UPDATED:.Admin links - NEW First (timestamp desc)
-    function renderAdminLinks() {
-      const list = document.getElementById('adminLinksList');
-      const myLinks = allData.links.filter(l => l.addedBy === currentUser.id);
-      // Sort by timestamp desc (NEW first)
-      myLinks.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      
-      list.innerHTML = myLinks.map(link => `
-        <div class="link-item">
-          <div><strong>${link.text}</strong><span class="link-status ${statusBadge(link.status)[0]}">${statusBadge(link.status)[1]}</span></div>
-          <div class="link-meta">Claimed by: ${link.claimedByName || 'Pending'}</div>
-          <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
-          <div class="link-meta">Added: ${link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'}</div>
-        </div>
-      `).join('') || '<p>No links added.</p>';
-    }
+function renderAdminLinks() {
+  const list = document.getElementById('adminLinksList');
+  const myLinks = allData.links.filter(l => l.addedBy === currentUser.id);
 
-    // UPDATED: Employee links - NEW First (claimed timestamp desc for claimed, then success/expire at bottom)
-    function renderEmployeeLinks() {
-      const list = document.getElementById('employeeLinksList');
-      const myLinks = allData.links.filter(l => l.claimedBy === currentUser.id);
-      
-      // Sort: claimed (NEW) first, then success/expire at bottom
-      myLinks.sort((a, b) => {
-        // claimed links first (NEW coming)
-        if (a.status === 'claimed' && b.status !== 'claimed') return -1;
-        if (a.status !== 'claimed' && b.status === 'claimed') return 1;
-        // within same status, NEW first (timestamp desc)
-        return new Date(b.timestamp) - new Date(a.timestamp);
-      });
-      
-      list.innerHTML = myLinks.map(link => `
-        <div class="link-item">
-          <div><strong>${link.text}</strong><span class="link-status ${statusBadge(link.status)[0]}">${statusBadge(link.status)[1]}</span></div>
-          <div class="link-meta"><a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a></div>
-          <div class="link-meta">Added by: ${link.addedByName || 'Unknown'} | Time: ${link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'}</div>
-          ${link.status === 'claimed' ? `
-            <div style="margin-top:10px;">
-              <span class="live-timer" id="timer-${link.id}">⏱️ 0m 0s</span>
-            </div>
-            <div class="employee-link-buttons" style="margin-top:10px;">
-              <button type="button" class="success-btn" onclick="markSuccess('${link.id}')">✅ Success</button>
-              <button type="button" class="expire-btn" onclick="markExpire('${link.id}')">❌ Expire</button>
-            </div>
-          ` : ''}
-        </div>
-      `).join('') || '<p>No links claimed.</p>';
-    }
+  myLinks.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    function renderAvailableLinks() {
-      const list = document.getElementById('availableLinksList');
-      const links = allData.links.filter(l => l.status === 'pending');
-      links.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      list.innerHTML = links.map(link => `
-        <div class="link-item">
-          <div><strong>${link.text}</strong></div>
-          <div class="link-meta"><a href="${link.url}" target="_blank">${link.url}</a></div>
-          <div class="link-meta">Added by: ${link.addedByName} | Time: ${link.timestamp ? new Date(link.timestamp).toLocaleTimeString() : '-'}</div>
+  list.innerHTML = myLinks.map(link => `
+    <div class="link-item">
+      <div>
+        <strong>${link.text}</strong>
+        <span class="link-status ${statusBadge(link.status)[0]}">${statusBadge(link.status)[1]}</span>
+      </div>
+
+      <div class="link-meta">Claimed by: ${link.claimedByName || 'Pending'}</div>
+
+      <div class="link-meta">
+        ${link.url ? `<a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a>` : ''}
+      </div>
+
+      <div class="link-meta">Added: ${link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'}</div>
+    </div>
+  `).join('') || '<p>No links added.</p>';
+}
+
+function renderEmployeeLinks() {
+  const list = document.getElementById('employeeLinksList');
+  const myLinks = allData.links.filter(l => l.claimedBy === currentUser.id);
+
+  myLinks.sort((a, b) => {
+    if (a.status === 'claimed' && b.status !== 'claimed') return -1;
+    if (a.status !== 'claimed' && b.status === 'claimed') return 1;
+    return new Date(b.timestamp) - new Date(a.timestamp);
+  });
+
+  list.innerHTML = myLinks.map(link => `
+    <div class="link-item">
+      <div>
+        <strong>${link.text}</strong>
+        <span class="link-status ${statusBadge(link.status)[0]}">${statusBadge(link.status)[1]}</span>
+      </div>
+
+      <div class="link-meta">
+        ${link.url ? `<a href="${link.url}" target="_blank" rel="noopener noreferrer">${link.url}</a>` : ''}
+      </div>
+
+      <div class="link-meta">Added by: ${link.addedByName || 'Unknown'} | Time: ${link.timestamp ? new Date(link.timestamp).toLocaleString() : '-'}</div>
+
+      ${link.status === 'claimed' ? `
+        <div style="margin-top:10px;">
+          <span class="live-timer" id="timer-${link.id}">⏱️ 0m 0s</span>
         </div>
-      `).join('') || '<p>No pending links.</p>';
-    }
+        <div class="employee-link-buttons" style="margin-top:10px;">
+          <button type="button" class="success-btn" onclick="markSuccess('${link.id}')">✅ Success</button>
+          <button type="button" class="expire-btn" onclick="markExpire('${link.id}')">❌ Expire</button>
+        </div>
+      ` : ''}
+    </div>
+  `).join('') || '<p>No links claimed.</p>';
+}
+
+function renderAvailableLinks() {
+  const list = document.getElementById('availableLinksList');
+  const links = allData.links.filter(l => l.status === 'pending');
+  links.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+  list.innerHTML = links.map(link => `
+    <div class="link-item">
+      <div><strong>${link.text}</strong></div>
+      <div class="link-meta">
+        ${link.url ? `<a href="${link.url}" target="_blank">${link.url}</a>` : ''}
+      </div>
+      <div class="link-meta">Added by: ${link.addedByName} | Time: ${link.timestamp ? new Date(link.timestamp).toLocaleTimeString() : '-'}</div>
+    </div>
+  `).join('') || '<p>No pending links.</p>';
+}
+
   </script>
 </body>
 </html>
